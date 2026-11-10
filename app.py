@@ -1,145 +1,119 @@
 import asyncio
 import io
+import os
 import re
 import time
 import zipfile
 import streamlit as st
 import edge_tts
 
-st.set_page_config(page_title='Thai Chameleon Book | Microsoft Voices', page_icon='🦎')
+st.set_page_config(page_title='Thai Chameleon Book | Microsoft TTS', page_icon='🦎', layout='centered')
 st.title('🦎 Thai Chameleon Book')
-st.caption('Microsoft Neural Voices • English / 中文 / ไทย • MP3 • Long text')
+st.caption('Microsoft Neural TTS • English / 中文 / ไทย • MP3')
 try:
-    required_password = st.secrets.get('APP_PASSWORD')
+    secret = st.secrets.get('APP_PASSWORD')
 except Exception:
-    required_password = None
-if required_password:
-    password = st.text_input('รหัสผ่าน', type='password')
-    if password != str(required_password):
-        if password:
-            st.error('รหัสผ่านไม่ถูกต้อง')
+    secret = None
+if secret:
+    if st.text_input('รหัสผ่าน', type='password') != str(secret):
         st.stop()
 
-voice_groups = {
-    'English': {
-        'Jenny (US) · Female': 'en-US-JennyNeural',
-        'Michelle (US) · Female': 'en-US-MichelleNeural',
-        'Aria (US) · Female': 'en-US-AriaNeural',
-        'Ana (US) · Female': 'en-US-AnaNeural',
-        'Sonia (UK) · Female': 'en-GB-SoniaNeural',
-        'Libby (UK) · Female': 'en-GB-LibbyNeural',
-        'Guy (US) · Male': 'en-US-GuyNeural',
-    },
-    '中文 · 普通话': {
-        'Xiaoxiao · Female': 'zh-CN-XiaoxiaoNeural',
-        'Xiaoyi · Female': 'zh-CN-XiaoyiNeural',
-        'Yunxi · Male': 'zh-CN-YunxiNeural',
-        'Yunjian · Male': 'zh-CN-YunjianNeural',
-    },
-    '中文 · 台灣': {
-        'HsiaoChen · Female': 'zh-TW-HsiaoChenNeural',
-        'YunJhe · Male': 'zh-TW-YunJheNeural',
-    },
-    'ภาษาไทย': {
-        'Premwadee · ผู้หญิง': 'th-TH-PremwadeeNeural',
-        'Niwat · ผู้ชาย': 'th-TH-NiwatNeural',
-    },
+GROUPS = {
+ 'English': {'Jenny · หญิง':'en-US-JennyNeural','Michelle · หญิง':'en-US-MichelleNeural','Aria · หญิง':'en-US-AriaNeural','Ana · เด็กหญิง':'en-US-AnaNeural','Sonia · หญิง UK':'en-GB-SoniaNeural','Libby · หญิง UK':'en-GB-LibbyNeural','Guy · ชาย':'en-US-GuyNeural'},
+ '中文 · 普通话': {'Xiaoxiao · 女':'zh-CN-XiaoxiaoNeural','Xiaoyi · 女':'zh-CN-XiaoyiNeural','Yunxi · 男':'zh-CN-YunxiNeural','Yunjian · 男':'zh-CN-YunjianNeural'},
+ '中文 · 台灣': {'HsiaoChen · 女':'zh-TW-HsiaoChenNeural','YunJhe · 男':'zh-TW-YunJheNeural'},
+ 'ภาษาไทย': {'Premwadee · หญิง':'th-TH-PremwadeeNeural','Niwat · ชาย':'th-TH-NiwatNeural'}
 }
+lang = st.selectbox('ภาษา', list(GROUPS))
+voice_label = st.selectbox('เสียง Microsoft', list(GROUPS[lang]))
+voice = GROUPS[lang][voice_label]
+rate_label = st.select_slider('ความเร็ว', ['Very slow','Slow','Normal','Fast'], value='Normal')
+rate = {'Very slow':'-40%','Slow':'-20%','Normal':'+0%','Fast':'+20%'}[rate_label]
+content = st.text_area('ข้อความ', height=180, max_chars=30000, placeholder='วางข้อความภาษาอังกฤษ จีน หรือไทย')
+st.caption(f'จำนวนอักขระ: {len(content):,} • ระบบแบ่งข้อความยาวเป็นช่วงให้อัตโนมัติ')
 
-language = st.selectbox('ภาษา', list(voice_groups))
-voices = voice_groups[language]
-voice_name = st.selectbox('เสียง Microsoft', list(voices))
-rate_name = st.select_slider('ความเร็ว', ['Very slow', 'Slow', 'Normal', 'Fast'], value='Normal')
-rates = {'Very slow': '-40%', 'Slow': '-20%', 'Normal': '+0%', 'Fast': '+20%'}
-content = st.text_area('ข้อความที่ต้องการให้อ่าน (ไม่จำกัดจำนวนตัวอักษรในแอป)', height=240,
-                       placeholder='พิมพ์หรือวางข้อความที่นี่')
-st.caption(f'จำนวนตัวอักษร: {len(content):,} • ระบบจะแบ่งข้อความยาวเป็นช่วงอัตโนมัติ')
-
-# Limit each individual Edge TTS request, not the overall user text.
-def split_text(text, limit=1600):
-    text = text.strip()
-    if not text:
+# Chunk at punctuation/whitespace boundaries; never cut through words unnecessarily.
+def split_text(value, limit=850):
+    value = value.strip()
+    if not value:
         return []
-    # Preserve the original content, including punctuation and whitespace.
-    parts = re.findall(r'.+?(?:[.!?。！？\n]+(?:\s+|$)|$)', text, flags=re.S)
-    if not parts:
-        parts = [text]
-    result = []
-    current = ''
-    for part in parts:
-        while len(part) > limit:
-            if current:
-                result.append(current)
-                current = ''
-            candidate = part[:limit]
-            # Prefer a whitespace boundary when available.
-            cut = max(candidate.rfind(' '), candidate.rfind('\n'))
-            if cut < limit // 3:
-                cut = limit
-            else:
-                cut += 1
-            result.append(part[:cut])
-            part = part[cut:]
-        if len(current) + len(part) > limit:
-            if current:
-                result.append(current)
-            current = part
+    parts = []
+    while len(value) > limit:
+        region = value[:limit]
+        candidates = [region.rfind(sep) for sep in ['\n','。','！','？','. ','! ','? ','；','; ', '，', ', ', ' ']]
+        cut = max(candidates)
+        if cut < limit // 3:
+            cut = limit
         else:
-            current += part
-    if current:
-        result.append(current)
-    return [p for p in result if p.strip()]
+            cut += 1
+        parts.append(value[:cut].strip())
+        value = value[cut:].strip()
+    if value:
+        parts.append(value)
+    return parts
 
-async def synthesize_chunk(chunk, voice, rate):
-    # Edge TTS returns encoded MP3 bytes. Each chunk can be saved independently.
+async def make_chunk(text, voice, rate):
+    # Network hiccups are common; retry only temporary errors.
     for attempt in range(3):
+        buffer = bytearray()
         try:
-            data = bytearray()
-            async for message in edge_tts.Communicate(chunk, voice, rate=rate).stream():
-                if message['type'] == 'audio':
-                    data.extend(message['data'])
-            if not data:
-                raise RuntimeError('Microsoft TTS returned no audio')
-            return bytes(data)
+            async def receive():
+                async for event in edge_tts.Communicate(text, voice, rate=rate).stream():
+                    if event.get('type') == 'audio':
+                        buffer.extend(event.get('data', b''))
+            await asyncio.wait_for(receive(), timeout=65)
+            if not buffer:
+                raise RuntimeError('NoAudioReceived: empty audio stream')
+            return bytes(buffer)
         except Exception:
             if attempt == 2:
                 raise
             await asyncio.sleep(1.5 * (attempt + 1))
 
-async def synthesize_all(parts, voice, rate, on_progress):
-    audio_parts = []
-    for index, part in enumerate(parts):
-        audio_parts.append(await synthesize_chunk(part, voice, rate))
-        on_progress(index + 1, len(parts))
-    return audio_parts
+async def synthesize_all(chunks, voice, rate, progress):
+    result = []
+    for i, part in enumerate(chunks):
+        audio = await make_chunk(part, voice, rate)
+        result.append(audio)
+        progress.progress((i+1)/len(chunks), text=f'สร้างเสียงแล้ว {i+1}/{len(chunks)} ช่วง')
+    return result
 
 if st.button('🎧 สร้างเสียง Microsoft', type='primary', use_container_width=True):
     if not content.strip():
         st.warning('กรุณาใส่ข้อความก่อน')
     else:
-        st.session_state.pop('mp3', None)
-        st.session_state.pop('mp3_zip', None)
         chunks = split_text(content)
-        bar = st.progress(0, text=f'กำลังสร้างเสียง 0% • 0/{len(chunks)} ช่วง')
-        percent_display = st.empty()
-        percent_display.markdown('### 🎧 สร้างเสียงแล้ว 0%')
-        def update(done, total):
-            percent = round(done * 100 / total)
-            bar.progress(percent, text=f'กำลังสร้างเสียง {percent}% • {done}/{total} ช่วง')
-            percent_display.markdown(f'### 🎧 สร้างเสียงแล้ว {percent}%')
-        try:
-            pieces = asyncio.run(synthesize_all(chunks, voices[voice_name], rates[rate_name], update))
-            # Concatenated MPEG audio frames are normally playable as a single MP3.
-            combined = b''.join(pieces)
-            st.session_state['mp3'] = combined
-            st.session_state['mp3_filename'] = f'ThaiChameleon_{voices[voice_name]}.mp3'
-            st.success(f'สร้างเสียงสำเร็จ 100% • {len(chunks)} ช่วง')
-        except Exception as exc:
-            st.error(f'สร้างเสียงไม่สำเร็จ: {type(exc).__name__}: {exc}')
-            st.info('หากข้อความยาวมาก ลองแบ่งเป็นบทเพื่อหลีกเลี่ยงข้อจำกัดเวลาและหน่วยความจำของเซิร์ฟเวอร์')
-if st.session_state.get('mp3'):
-    st.audio(st.session_state['mp3'], format='audio/mp3')
-    st.download_button('⬇️ ดาวน์โหลด MP3', st.session_state['mp3'],
-                       file_name=st.session_state['mp3_filename'], mime='audio/mpeg',
-                       use_container_width=True)
-st.caption('ใช้ Microsoft Edge Neural TTS ผ่านอินเทอร์เน็ต ไม่ใช้เสียงในโทรศัพท์ • การสร้างข้อความยาวขึ้นอยู่กับข้อจำกัดของเซิร์ฟเวอร์และบริการ TTS')
+        if len(chunks) > 40:
+            st.error('ข้อความยาวเกินไป กรุณาแบ่งงานเป็นชุดละไม่เกินประมาณ 30,000 อักขระ')
+        else:
+            bar = st.progress(0, text=f'เริ่มสร้างเสียง 0/{len(chunks)} ช่วง')
+            try:
+                audios = asyncio.run(synthesize_all(chunks, voice, rate, bar))
+                st.session_state['audio_parts'] = audios
+                st.session_state['voice'] = voice
+                st.session_state['error'] = None
+                st.success(f'สร้างเสียงสำเร็จ {len(audios)} ช่วง')
+            except Exception as exc:
+                st.session_state.pop('audio_parts', None)
+                st.session_state['error'] = type(exc).__name__
+                st.error('Microsoft Edge TTS ไม่ส่งเสียงกลับมาในขณะนี้ (อาจเป็นปัญหาบริการหรือการเชื่อมต่อของเซิร์ฟเวอร์)')
+                st.info('ลองข้อความสั้น ๆ และเสียง Jenny อีกครั้ง หากยังล้มเหลว ปัญหาไม่ได้เกิดจากจำนวนอักขระ การแบ่งข้อความหรือการกดซ้ำไม่สามารถแก้การบล็อกบริการต้นทางได้')
+
+if st.session_state.get('audio_parts'):
+    parts = st.session_state['audio_parts']
+    st.subheader('▶ ฟังเสียง')
+    for idx, part in enumerate(parts):
+        if len(parts) > 1:
+            st.caption(f'ช่วงที่ {idx+1}/{len(parts)}')
+        st.audio(part, format='audio/mpeg')
+    if len(parts) == 1:
+        st.download_button('⬇️ ดาวน์โหลด MP3', parts[0], file_name=f'ThaiChameleon_{st.session_state["voice"]}.mp3', mime='audio/mpeg', use_container_width=True)
+    else:
+        mem = io.BytesIO()
+        with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_STORED) as archive:
+            for idx, part in enumerate(parts, 1):
+                archive.writestr(f'ThaiChameleon_{idx:02d}.mp3', part)
+        st.download_button('⬇️ ดาวน์โหลด MP3 ทุกช่วง (ZIP)', mem.getvalue(), file_name='ThaiChameleon_MP3_Parts.zip', mime='application/zip', use_container_width=True)
+        st.caption('ไฟล์ยาวแบ่งเป็น MP3 หลายช่วง เพื่อหลีกเลี่ยงปัญหาการต่อ MP3 ที่ไม่สมบูรณ์')
+
+st.caption('ใช้บริการ Microsoft Edge TTS ผ่านอินเทอร์เน็ต ไม่ใช้เสียง TTS ในโทรศัพท์ • การทำงานขึ้นอยู่กับความพร้อมของบริการต้นทาง')
