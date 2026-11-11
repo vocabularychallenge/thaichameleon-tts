@@ -1,3 +1,7 @@
-Thai Chameleon TTS V3 prototype
-Upload index.html to the root of https://github.com/vocabularychallenge/thaichameleon-tts on main, replacing the old index.html after backing it up.
-English: Kokoro AI via online model download, browser inference. Thai/Chinese: device speechSynthesis voices. Translation: MyMemory free API with quota. MP3: English word only. Phonics: illustrative approximations for six predefined words, NOT a verified phoneme audio library. Test on Android before release.
+Thai Chameleon TTS V5
+เปิด index.html ใน Chrome หรืออัปโหลด index.html ไปยัง GitHub Pages
+ฟังเสียง 1/2 ผ่านเสียงระบบ Android; เลือกเสียงที่เบราว์เซอร์มองเห็น
+MP3: ต้องเลือกไฟล์เสียงสองไฟล์ที่เตรียมไว้; ระบบจะรวมเป็นไฟล์เดียวและแสดงเปอร์เซ็นต์/เวลาประมาณ
+ไม่สามารถแปลงเสียง Android speechSynthesis เป็น MP3 ได้โดยตรง
+ไม่มีบริการเสียเงิน; การเข้ารหัส MP3 ใช้ lamejs จาก CDN
+ยังไม่ได้ทดสอบครบทุกเครื่อง
