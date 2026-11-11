@@ -10,13 +10,6 @@ import edge_tts
 st.set_page_config(page_title='Thai Chameleon Book | Microsoft TTS', page_icon='🦎', layout='centered')
 st.title('🦎 Thai Chameleon Book')
 st.caption('Microsoft Neural TTS • English / 中文 / ไทย • MP3')
-try:
-    secret = st.secrets.get('APP_PASSWORD')
-except Exception:
-    secret = None
-if secret:
-    if st.text_input('รหัสผ่าน', type='password') != str(secret):
-        st.stop()
 
 GROUPS = {
  'English': {'Jenny · หญิง':'en-US-JennyNeural','Michelle · หญิง':'en-US-MichelleNeural','Aria · หญิง':'en-US-AriaNeural','Ana · เด็กหญิง':'en-US-AnaNeural','Sonia · หญิง UK':'en-GB-SoniaNeural','Libby · หญิง UK':'en-GB-LibbyNeural','Guy · ชาย':'en-US-GuyNeural'},
