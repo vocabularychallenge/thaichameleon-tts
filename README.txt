@@ -1,9 +1,3 @@
-Thai Chameleon Kokoro TTS — Browser Edition
-1. Upload index.html to GitHub Pages root (backup the existing index.html first).
-2. On first use click Load AI Model, then Generate.
-3. Playback and download WAV or MP3.
-4. No Azure, no paid API, no account needed.
-5. Model downloads from Hugging Face; JavaScript modules and MP3 encoder load from public CDNs. An internet connection is needed for first load.
-6. Audio is generated locally in the browser; device performance and memory may limit use.
-7. This is an untested integration on actual Android hardware. Test before replacing production website.
-8. Only English voices are included; Kokoro is not a Thai-language TTS replacement.
+Thai Chameleon TTS V3 prototype
+Upload index.html to the root of https://github.com/vocabularychallenge/thaichameleon-tts on main, replacing the old index.html after backing it up.
+English: Kokoro AI via online model download, browser inference. Thai/Chinese: device speechSynthesis voices. Translation: MyMemory free API with quota. MP3: English word only. Phonics: illustrative approximations for six predefined words, NOT a verified phoneme audio library. Test on Android before release.
