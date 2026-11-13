@@ -1,6 +1,5 @@
-KornAiStudio Dual Voice PWA
-อัปโหลดไฟล์ทั้งหมดจาก ZIP ลง GitHub Pages repository เดิม
-ระบบ 1: เสียงจากอุปกรณ์ผ่าน Web Speech API (ฟังได้ แต่เซฟ MP3 ตรงไม่ได้)
-ระบบ 2: Kokoro AI ภาษาอังกฤษสร้าง MP3 บนอุปกรณ์ ใช้โมเดล Hugging Face ONNX และ lamejs ผ่าน CDN ครั้งแรกต้องออนไลน์ และอาจไม่ทำงานบนมือถือ RAM ต่ำ
-ระบบรวม MP3 เดิมยังอยู่ และต้องใช้ไฟล์เสียง 2 ไฟล์
-หมายเหตุ: ยังไม่ได้ทดสอบการสร้าง MP3 จริงบน Android หรือบนเว็บไซต์ที่เผยแพร่; ต้องทดสอบก่อนใช้จริง
+KornAiStudio Conversation Translator PWA
+
+Upload ALL files in this folder to the same HTTPS directory (e.g. GitHub Pages). Open the HTTPS site in Chrome on Android, then use Chrome menu > Add to Home screen / Install app. Opening index.html from Downloads (content:// or file://) will NOT install as PWA.
+
+The interface is cached for offline reopening. Translation requires internet and third-party translation availability. Speech recognition depends on browser support and permissions. Speech synthesis depends on installed device voices.
